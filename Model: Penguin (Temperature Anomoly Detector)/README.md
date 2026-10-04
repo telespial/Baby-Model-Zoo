@@ -1,4 +1,4 @@
-# Model: Penguin - Temperature Anomaly Detector Demo
+# Model: Penguin - EdgeAI Temperature Anomaly Detector
 
 <img width="640" height="450" alt="IMG_2568" src="https://github.com/user-attachments/assets/1f4a1e59-f718-44e5-bc66-dbc48cc1902a" />
 
