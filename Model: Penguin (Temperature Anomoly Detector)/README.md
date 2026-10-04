@@ -1,208 +1,143 @@
-# Model: Penguin — Temperature Anomaly Detector
+# Model: Penguin
 
-Penguin is a compact, adaptive temperature-anomaly detector designed to run entirely on a resource-constrained microcontroller. The current reference implementation runs on the NXP FRDM-MCXC162 development board and observes its onboard P3T1755 temperature sensor.
+## Temperature Anomaly Detector
 
-The model combines two independent views of the same temperature history:
+**Penguin learns the normal temperature behavior around an FRDM-MCXC162 and alerts when that behavior changes.**
 
-1. A neural-network **autoencoder** asks whether the *shape* of the latest temperature window resembles the behavior learned during baseline training.
-2. An adaptive **linear predictor** asks whether the newest reading agrees with what the earlier portion of that window predicts.
+It runs entirely on the microcontroller. No cloud connection is required for sampling, training, inference, scoring, or alerting.
 
-Their errors are combined into a single anomaly score. A detected anomaly is reported over USB and flashes the board's blue LED. All sampling, normalization, training, inference, scoring, and classification happen on the MCU; no cloud connection is required.
+Penguin combines two small models:
 
-> **Important:** Penguin is an experimental environmental anomaly detector. It is not a medical device, a clinical infant monitor, or a substitute for an independently validated absolute-temperature alarm.
+- An **autoencoder** recognizes unusual shapes in recent temperature history.
+- A **linear predictor** recognizes a newest reading that does not agree with earlier readings.
 
-## Project goals
+When their combined score crosses the learned anomaly threshold, the board flashes its blue LED and reports the anomaly to the browser dashboard.
 
-- Detect sudden or structurally unusual changes in a temperature stream.
-- Learn the local environment on the MCU instead of requiring a cloud-trained model.
-- Operate without dynamic memory allocation.
-- Keep computation and model storage small enough for a constrained Cortex-M target.
-- Keep anomaly inference independent of the flash-recording interval.
-- Expose understandable component errors rather than only a binary alarm.
+> [!CAUTION]
+> Penguin is an experimental environmental anomaly detector. It is not a medical device, a clinical infant monitor, or a replacement for an independently validated high/low temperature alarm.
 
-## Reference system
+## Contents
 
-| Item | Reference implementation |
-|---|---|
-| Target | NXP FRDM-MCXC162 |
-| Temperature sensor | Onboard P3T1755 |
-| Temperature sampling | Nominally every 200 ms while recording |
-| Analysis window | 16 samples, approximately 3.2 seconds |
-| Baseline period | Adjustable from 32 to 256 samples; default 128 |
-| Model 1 | 16–8–4–8–16 autoencoder |
-| Model 2 | Eight-input linear predictor |
-| Combined score | Mean of reconstruction and prediction errors |
-| Alert output | USB telemetry plus a 500 ms blue LED indication |
-| Memory policy | Fixed-size static buffers; no model heap allocation |
+- [How Penguin works](#how-penguin-works)
+- [Model 1: autoencoder](#model-1-autoencoder)
+- [Model 2: linear predictor](#model-2-linear-predictor)
+- [Training and anomaly decisions](#training-and-anomaly-decisions)
+- [Install and run](#install-and-run)
+- [Board controls and LEDs](#board-controls-and-leds)
+- [Dashboard controls](#dashboard-controls)
+- [Technical reference](#technical-reference)
+- [Limitations](#limitations)
 
-## Install and run the reference application
+## At a glance
 
-The runnable firmware and browser dashboard are maintained in the [EmbeddedX repository](https://github.com/telespial/EmbeddedX_V2_0/tree/main/projects/manufacturers/NXP/FRDM/MCXC162). The dashboard runs locally on macOS, Windows, and Linux and sends no temperature data to a cloud service.
+- **Board:** NXP FRDM-MCXC162
+- **Sensor:** onboard P3T1755
+- **Live sampling:** approximately every 200 ms while recording
+- **Model input:** latest 16 samples, representing about 3.2 seconds
+- **Baseline:** adjustable from 32 to 256 samples; default 128
+- **Alert:** USB telemetry and a 500 ms blue LED indication
+- **Memory:** fixed-size static buffers with no model heap allocation
 
-### Requirements
-
-- An FRDM-MCXC162 programmed with the reference firmware.
-- A data-capable USB cable attached to the MCU-Link/debug USB connector.
-- Node.js 24.
-- A current desktop Google Chrome or Microsoft Edge browser. Firefox and Safari do not currently expose the Web Serial API required by the dashboard.
-- Git, unless the repository is downloaded as a ZIP file.
-
-### macOS installation
-
-1. Install Node.js 24 from [nodejs.org](https://nodejs.org/en/download).
-2. Install Chrome or Edge.
-3. Open Terminal and run:
-
-   ```sh
-   git clone https://github.com/telespial/EmbeddedX_V2_0.git
-   cd EmbeddedX_V2_0
-   node --version
-   ```
-
-The Node version should begin with `v24`. A current macOS installation normally recognizes the MCU-Link serial interface without an additional driver.
-
-### Windows installation
-
-1. Install Node.js 24 from [nodejs.org](https://nodejs.org/en/download) and allow the installer to add Node to `PATH`.
-2. Install Chrome or Edge and, if needed, [Git for Windows](https://git-scm.com/download/win).
-3. Open PowerShell and run:
-
-   ```powershell
-   git clone https://github.com/telespial/EmbeddedX_V2_0.git
-   Set-Location EmbeddedX_V2_0
-   node --version
-   ```
-
-The Node version should begin with `v24`. Allow Windows to finish installing the board's USB serial device after first attachment.
-
-### Linux installation
-
-1. Install Node.js 24 and a current Chrome or Edge build.
-2. Clone the repository:
-
-   ```sh
-   git clone https://github.com/telespial/EmbeddedX_V2_0.git
-   cd EmbeddedX_V2_0
-   node --version
-   ```
-
-3. Ensure that your account can access USB serial devices. On distributions using the `dialout` group:
-
-   ```sh
-   sudo usermod -aG dialout "$USER"
-   ```
-
-   Log out completely and sign in again. If the board's `/dev/ttyACM*` device belongs to another group, use the group configured by that distribution. Do not run the browser or dashboard as root.
-
-### Start the dashboard
-
-From the EmbeddedX repository root on any supported operating system, run:
-
-```sh
-node scripts/serve-dashboard.mjs
-```
-
-The equivalent npm command is:
-
-```sh
-npm run dashboard
-```
-
-The local server binds to `127.0.0.1` and opens <http://localhost:4173>. If the browser does not open automatically, enter that address manually in Chrome or Edge. Keep the terminal open while using the application; press `Ctrl+C` to stop it.
-
-### Connect the device
-
-1. Attach the board through its MCU-Link/debug USB connector.
-2. Close IDE serial terminals, other dashboard tabs, and any program using the board's serial port.
-3. Select **Connect board** in the dashboard.
-4. Choose the MCU-Link serial port in the browser's device chooser.
-5. Confirm that the upper-right status changes to **Board connected · RTC synced**.
-
-The dashboard synchronizes the RTC from the computer after every successful connection. Browser security requires a user click before a serial-device chooser can open.
-
-### SW2, SW3, and LEDs
-
-The firmware boots stopped:
-
-- **SW3** starts recording, live graph telemetry, and Penguin inference.
-- **SW2** stops recording and live sampling without erasing history.
-- **Red steady** means recording is stopped.
-- **Green steady** means recording is active.
-- **Green off for 25 ms** marks a successful flash record. This blink follows the selected record interval.
-- **Blue for 500 ms** indicates a Penguin anomaly. Continued anomalies restart the timer.
-
-The dashboard's start/pause button mirrors SW3 and SW2.
-
-### Configure and use the application
-
-- Unlock the record-interval slider with **Lock: Off**, choose a value from one second to one hour, and optionally relock it. The MCU retains the setting and supplies it to the dashboard at connection time.
-- Choose a **Baseline training** length from 32 to 256 samples. At the 200 ms inference cadence, this is approximately 6.4 to 51.2 seconds. Changing it resets both in-RAM models and begins a new baseline. The choice is retained on the device across reset while the RTC power domain remains available.
-- Keep the sensor in representative normal conditions while the baseline is collected.
-- Enable **AI Filter** to apply a three-sample moving average to model input. Displayed and logged measurements remain raw.
-- Use **Playback** to load flash history, the mouse wheel to zoom, dragging to scroll, **Show all** to reset the view, and **Export CSV** to download the displayed data.
-- **Reset logger** permanently erases temperature history after confirmation; it does not clear the retained interval or training selection.
-
-The full operational and troubleshooting guide is also available in the [FRDM-MCXC162 project README](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/README.md).
-
-## Signal and inference pipeline
-
-```mermaid
-flowchart LR
-    S[P3T1755 temperature] --> F{AI filter enabled?}
-    F -->|No| R[Raw sample]
-    F -->|Yes| M[3-sample moving average]
-    R --> W[16-sample rolling window]
-    M --> W
-    W --> N[Per-window normalization]
-    N --> A[Autoencoder]
-    N --> P[Linear predictor]
-    A --> RE[Reconstruction error]
-    P --> PE[Prediction error]
-    RE --> C[Average the two errors]
-    PE --> C
-    C --> T{Adaptive thresholds}
-    T -->|Below watch| OK[Ready]
-    T -->|Watch threshold| WATCH[Watch]
-    T -->|Anomaly threshold| ALERT[Anomaly + blue LED]
-```
-
-The optional AI filter affects only the samples supplied to the models. The temperature displayed by the dashboard and written to the flash logger remains the raw sensor measurement.
-
-## Input window and normalization
-
-Penguin stores the latest 16 samples in a ring buffer. Once the buffer is full, it puts them in chronological order and normalizes that window:
+## How Penguin works
 
 ```text
-center = mean(window)
-scale  = standard deviation(window)
+P3T1755 temperature sensor
+           │
+           ▼
+Optional 3-sample AI filter
+           │
+           ▼
+16-sample rolling window
+           │
+           ▼
+Normalize the window
+           │
+      ┌────┴────┐
+      ▼         ▼
+ Autoencoder  Predictor
+      │         │
+      ▼         ▼
+Reconstruction Prediction
+    error         error
+      └────┬────┘
+           ▼
+ Average both errors
+           │
+           ▼
+Ready  /  Watch  /  Anomaly
+                         │
+                         ▼
+                  Blue LED + USB alert
+```
+
+The optional filter affects only the input sent to the models. The dashboard and flash logger continue to use the raw temperature measurement.
+
+### The 16-sample input window
+
+Penguin keeps the latest 16 readings in chronological order. At the normal 200 ms sampling cadence, the window covers approximately 3.2 seconds.
+
+Each window is normalized before it reaches either model:
+
+```text
+center   = mean(window)
+scale    = standard deviation(window)
 input[i] = (window[i] - center) / scale
 ```
 
-The scale has a lower bound of `0.05` to avoid division by a very small number when temperature is nearly constant.
+The minimum scale is `0.05`, which prevents division by a very small value when the temperature is nearly constant.
 
-Window-by-window normalization makes the models sensitive to pattern shape—jumps, slopes, oscillations, and other changes—while reducing sensitivity to the absolute room temperature. This is useful for behavioral anomaly detection, but it also means Penguin is not an absolute high-temperature or low-temperature safety alarm.
+Normalization makes Penguin sensitive to the *shape* of a change—such as a jump, slope, or oscillation—rather than simply reacting to the absolute room temperature.
 
-## Model 1: neural autoencoder
+## Model 1: autoencoder
 
-### Purpose
+### What it asks
 
-The autoencoder learns how a normal 16-sample temperature pattern looks. It compresses the normalized window into a small latent representation and attempts to reconstruct the original window. A pattern unlike the learned baseline is harder to reconstruct and therefore produces a larger error.
+> Does the complete recent temperature pattern look normal?
 
-### Architecture
+The autoencoder learns to reproduce normal 16-sample temperature windows. If an incoming pattern resembles its baseline, reconstruction is accurate. If the pattern is unfamiliar, reconstruction becomes less accurate.
+
+### Network shape
 
 ```text
-16 normalized temperatures
-          ↓
-8-unit encoder layer, ReLU
-          ↓
-4-unit latent layer, ReLU
-          ↓
-8-unit decoder layer, ReLU
-          ↓
-16-value linear reconstruction
+16 normalized samples
+         │
+         ▼
+  8-unit encoder
+         │
+         ▼
+4-unit compressed representation
+         │
+         ▼
+  8-unit decoder
+         │
+         ▼
+16 reconstructed samples
 ```
 
-The network contains 356 single-precision parameters:
+The three internal layers use ReLU activation. The final reconstruction layer is linear.
+
+### What it measures
+
+The model calculates mean squared error across the complete window:
+
+```text
+reconstruction error = Σ(input[i] - reconstruction[i])² / 16
+```
+
+A low error means the shape is familiar. A high error means the recent pattern differs from what the model learned.
+
+### How it learns
+
+- Weights begin from reproducible pseudo-random values generated from seed `7`.
+- Baseline learning uses online backpropagation.
+- The learning rate is `0.003`.
+- After baseline training, adaptation continues only for samples below the watch threshold.
+- Watch and anomaly samples are never used as self-training targets.
+
+That final guard helps prevent a new anomaly from immediately becoming learned as normal.
+
+<details>
+<summary><strong>Autoencoder parameter details</strong></summary>
 
 | Layer | Weights | Biases | Activation |
 |---|---:|---:|---|
@@ -210,185 +145,314 @@ The network contains 356 single-precision parameters:
 | 8 → 4 | 32 | 4 | ReLU |
 | 4 → 8 | 32 | 8 | ReLU |
 | 8 → 16 | 128 | 16 | Linear |
-| **Total** | **320** | **36** | **356 floats / 1,424 bytes** |
+| **Total** | **320** | **36** | **356 floats** |
 
-The forward-pass workspace is also statically allocated. It holds the intermediate 8-, 4-, and 8-unit layers plus the 16 reconstructed values.
+The parameters occupy 1,424 bytes as single-precision floats. The fixed forward-pass workspace stores the 8-, 4-, and 8-unit internal layers plus the 16 reconstructed values.
 
-### Reconstruction error
+</details>
 
-The autoencoder contribution is mean squared error across all 16 normalized values:
+## Model 2: linear predictor
+
+### What it asks
+
+> Is the newest temperature consistent with the earlier part of this window?
+
+The predictor uses the first eight normalized values in the 16-sample window to estimate the newest value at position 15.
 
 ```text
-reconstruction_error = Σ(input[i] - reconstruction[i])² / 16
+First 8 values ──► weighted sum + bias ──► predicted newest value
+                                                    │
+Actual newest value ────────────────────────────────┘
+                                                    │
+                                                    ▼
+                                            Absolute error
 ```
 
-This error captures disagreement across the entire recent pattern rather than looking only at the newest reading.
-
-### On-device training
-
-Weights start from deterministic pseudo-random values generated from seed `7`, making initialization reproducible. During baseline learning, the network performs online backpropagation with a learning rate of `0.003` on each eligible window.
-
-After baseline training, the autoencoder continues guarded adaptation only when the current combined anomaly score is below the watch threshold. Suspect and anomalous windows are scored but are not used as training targets. This guard reduces the chance that a new anomaly will immediately be learned as normal.
-
-## Model 2: adaptive linear predictor
-
-### Purpose
-
-The predictor provides a second kind of evidence. Instead of reconstructing the entire window, it estimates the newest normalized temperature from earlier samples. A sudden change that violates this learned relationship produces a large prediction error.
-
-### Architecture
-
-The model is intentionally small:
+### What it measures
 
 ```text
-prediction = bias + Σ(weight[i] × input[i]), i = 0…7
+prediction       = bias + Σ(weight[i] × input[i]), i = 0…7
+prediction error = abs(actual newest value - prediction)
 ```
 
-It has eight single-precision weights and one bias: nine floats, or 36 bytes of parameters.
+The model has only eight weights and one bias: nine floats, or 36 bytes of parameters.
 
-In the current implementation, the predictor consumes positions `0` through `7` of the normalized 16-sample chronological window and is trained against position `15`, the newest sample. In other words, it uses the first half of the current window to estimate its final value.
+### How it learns
 
-### Prediction error
-
-Its contribution to the anomaly score is absolute error:
+The predictor adapts online with a learning rate of `0.01`:
 
 ```text
-prediction_error = abs(actual_newest_value - predicted_value)
-```
-
-Absolute error keeps the contribution non-negative and treats unexpected upward and downward changes equally.
-
-### On-device training
-
-The predictor uses online gradient updates with a learning rate of `0.01`:
-
-```text
-error = actual - prediction
-bias += learning_rate × error
+error     = actual - prediction
+bias     += learning_rate × error
 weight[i] += learning_rate × error × input[i]
 ```
 
-It follows the same lifecycle as the autoencoder: initial baseline training followed by guarded adaptation only for windows considered normal.
+Like the autoencoder, it trains during baseline collection and later adapts only when the combined score remains below the watch threshold.
 
-## Ensemble anomaly decision
+## Training and anomaly decisions
 
-The two model outputs are given equal weight:
+### Adjustable baseline
 
-```text
-anomaly_score = (reconstruction_error + prediction_error) / 2
-```
+The dashboard's **Baseline training** slider selects 32–256 samples:
 
-Using both models lets Penguin respond to two different failure modes:
+- **32 samples:** approximately 6.4 seconds
+- **64 samples:** approximately 12.8 seconds
+- **128 samples:** approximately 25.6 seconds and the default
+- **256 samples:** approximately 51.2 seconds
 
-- The autoencoder detects an unusual overall window shape.
-- The predictor detects disagreement between earlier history and the newest reading.
+Intermediate settings of 96, 160, 192, and 224 samples are also available.
 
-Neither component alone determines the state. Classification is based on the combined score and thresholds learned during the baseline period.
+Changing the setting resets both models and begins a new baseline. It does **not** change the fixed 16-sample model input.
 
-### Adaptive thresholds
+Use a shorter baseline for faster startup. Use a longer baseline when normal conditions naturally vary. Keep the sensor in representative normal conditions while the baseline is collected.
 
-During the selected baseline-training period, Penguin maintains the running mean and sample variance of the combined error. It then calculates:
+### One combined score
 
-```text
-watch_threshold   = max(0.08, mean_error + 2 × standard_deviation)
-anomaly_threshold = max(0.20, mean_error + 3 × standard_deviation)
-```
-
-The fixed minimums prevent an extremely quiet baseline from producing thresholds that are too close to zero.
-
-| State | Meaning |
-|---|---|
-| `untrained` | Models have been initialized but have not received data. |
-| `collecting` | Fewer than 16 samples are available, so no complete window exists. |
-| `training` | The baseline is being learned for the selected 32–256 sample period. |
-| `ready` | The score is below the watch threshold. |
-| `watch` | The score is at or above the watch threshold but below the anomaly threshold. |
-| `anomaly` | The score is at or above the anomaly threshold. |
-| `error` | Reserved for model-service errors. |
-
-## Runtime behavior
-
-The MCU performs temperature sampling and AI processing at a nominal 200 ms cadence while recording is active. This inference cadence is separate from the configurable flash-recording interval. For example, a five-second logger interval still allows the models to analyze approximately 25 sensor samples between stored records.
-
-When the combined model state is `anomaly`:
-
-- USB sample telemetry reports `ai_state: "anomaly"`.
-- The telemetry includes reconstruction error, prediction error, and combined score.
-- The blue LED is switched on for 500 ms.
-- Additional anomalous samples restart the blue LED timer.
-
-The green LED continues to represent recording status, and the red LED represents stopped recording. Those indicators are independent of the blue anomaly alert.
-
-## AI input filter
-
-The optional filter is a three-sample moving average implemented on the MCU:
+The models contribute equally:
 
 ```text
-filtered_temperature = mean(latest three raw sensor samples)
+anomaly score = (reconstruction error + prediction error) / 2
 ```
 
-At a nominal 200 ms sample cadence, it smooths roughly the latest 600 ms of measurements. Filtering can reduce false alerts caused by single-sample noise, but it can also reduce the magnitude and delay the detection of a genuine abrupt change. The filter setting therefore changes the model input, not merely the dashboard display.
+- The autoencoder contributes evidence about the complete pattern.
+- The predictor contributes evidence about the newest reading.
 
-## Training and persistence lifecycle
+### Learned thresholds
 
-The model parameters live in MCU RAM. Serialization and checksum routines exist for packaging the autoencoder, predictor, and training-step count, but the current production firmware does not call them to save or restore a trained model. The selected baseline length is retained separately as a device setting.
+During baseline collection, Penguin measures the mean and variation of its combined error:
 
-Consequences:
+```text
+watch threshold   = max(0.08, mean error + 2 × standard deviation)
+anomaly threshold = max(0.20, mean error + 3 × standard deviation)
+```
 
-- Stopping and restarting recording without resetting the MCU retains the learned model.
-- Resetting or power-cycling the MCU initializes new deterministic weights and repeats baseline training.
-- Flash-recorded temperature history survives independently of the in-RAM model state.
+The minimum values prevent an extremely quiet baseline from producing thresholds too close to zero.
 
-A future persistence implementation should store model data in a dedicated, wear-managed region and validate its version, size, and checksum before restoration.
+The resulting states are:
 
-## Telemetry fields
+- **Collecting:** fewer than 16 samples are available.
+- **Training:** Penguin is learning its selected baseline.
+- **Ready:** score is below the watch threshold.
+- **Watch:** score is elevated but below the anomaly threshold.
+- **Anomaly:** score meets or exceeds the anomaly threshold.
 
-The reference firmware emits newline-delimited JSON over USB serial at 115200 baud. AI-related sample fields include:
+## Install and run
 
-| Field | Description |
-|---|---|
-| `ai_filter` | Whether the MCU-side three-sample filter is enabled. |
-| `ai_state` | Current lifecycle or classification state. |
-| `ai_error` | Autoencoder reconstruction mean squared error. |
-| `ai_prediction_error` | Linear predictor absolute error. |
-| `ai_score` | Equal-weight mean of the two errors. |
+The runnable firmware and dashboard are maintained in the [EmbeddedX FRDM-MCXC162 project](https://github.com/telespial/EmbeddedX_V2_0/tree/main/projects/manufacturers/NXP/FRDM/MCXC162).
 
-## Source implementation
+### Requirements
 
-The current reference source is maintained in the EmbeddedX repository:
+- FRDM-MCXC162 programmed with the reference firmware
+- Data-capable USB cable connected to the MCU-Link/debug USB connector
+- Node.js 24
+- Current desktop Google Chrome or Microsoft Edge
+- Git, unless you download the repository as a ZIP file
+
+> [!NOTE]
+> Firefox and Safari do not currently provide the Web Serial API required by this dashboard.
+
+### 1. Install the application
+
+<details open>
+<summary><strong>macOS</strong></summary>
+
+1. Install Node.js 24 from [nodejs.org](https://nodejs.org/en/download).
+2. Install Chrome or Edge.
+3. Open Terminal:
+
+   ```sh
+   git clone https://github.com/telespial/EmbeddedX_V2_0.git
+   cd EmbeddedX_V2_0
+   node --version
+   ```
+
+The version should begin with `v24`. macOS normally recognizes MCU-Link serial without another driver.
+
+</details>
+
+<details>
+<summary><strong>Windows</strong></summary>
+
+1. Install Node.js 24 from [nodejs.org](https://nodejs.org/en/download) and allow it to be added to `PATH`.
+2. Install Chrome or Edge and, if necessary, [Git for Windows](https://git-scm.com/download/win).
+3. Open PowerShell:
+
+   ```powershell
+   git clone https://github.com/telespial/EmbeddedX_V2_0.git
+   Set-Location EmbeddedX_V2_0
+   node --version
+   ```
+
+The version should begin with `v24`. Let Windows finish installing the USB serial device after first attaching the board.
+
+</details>
+
+<details>
+<summary><strong>Linux</strong></summary>
+
+1. Install Node.js 24 and a current Chrome or Edge build.
+2. Open a terminal:
+
+   ```sh
+   git clone https://github.com/telespial/EmbeddedX_V2_0.git
+   cd EmbeddedX_V2_0
+   node --version
+   ```
+
+3. If your distribution assigns serial devices to `dialout`, grant your user access:
+
+   ```sh
+   sudo usermod -aG dialout "$USER"
+   ```
+
+Log out completely and sign in again. Some distributions use another group; check the ownership of the board's `/dev/ttyACM*` device. Do not run the browser or dashboard as root.
+
+</details>
+
+### 2. Start the dashboard
+
+From the EmbeddedX repository root on macOS, Windows, or Linux:
+
+```sh
+node scripts/serve-dashboard.mjs
+```
+
+The server opens the default browser at <http://localhost:4173>. If it does not open automatically, enter that address manually in Chrome or Edge.
+
+Keep the terminal open while using Penguin. Press `Ctrl+C` to stop the server.
+
+### 3. Connect the board
+
+1. Attach the MCU-Link/debug USB connector with a data-capable cable.
+2. Close IDE serial terminals, other dashboard tabs, and anything else using the board's serial port.
+3. Select **Connect board**.
+4. Choose the MCU-Link serial port.
+5. Wait for **Board connected · RTC synced** in the upper-right corner.
+
+The browser requires a deliberate click before it may request access to a serial device. The dashboard synchronizes the board RTC after every successful connection.
+
+## Board controls and LEDs
+
+The firmware always boots with recording stopped.
+
+### Buttons
+
+- **SW3 starts recording.** It also starts live graph samples and Penguin inference.
+- **SW2 stops recording.** Existing flash history is not erased.
+
+The dashboard's **Start recording** and **Pause recording** button mirrors SW3 and SW2.
+
+### LEDs
+
+- **Red, steady:** recording is stopped.
+- **Green, steady:** recording is active.
+- **Green off for 25 ms:** one temperature record was written to flash.
+- **Blue for 500 ms:** Penguin detected an anomaly.
+
+The green blink follows the selected record interval. Blue anomaly detection continues at the faster live sampling cadence and does not wait for a flash record.
+
+## Dashboard controls
+
+### Record interval
+
+Controls how often the board stores a temperature in its 1,024-record circular logger. Set **Lock: Off** to change it and **Lock: On** to prevent accidental movement. It does not change graph or inference speed.
+
+### Baseline training
+
+Controls how many samples are used to establish normal behavior. Changing it resets both models and begins a new baseline. The selection is retained through MCU resets while the RTC power domain remains powered.
+
+### AI controls
+
+- **AI Filter:** applies a three-sample moving average before model inference.
+- **AI Anomaly:** enables or disables browser handling of MCU anomaly states.
+- **Anomaly Alert:** controls the large red graph alert.
+- **Anomaly Alarm:** controls browser vibration where supported.
+
+### Recorded data
+
+- **Playback:** loads flash history onto the graph.
+- **Show all:** resets zoom and scrolling.
+- **Export CSV:** downloads the currently displayed samples.
+- **Reset logger:** permanently erases temperature history after confirmation.
+- **Mouse wheel:** zooms the graph.
+- **Drag:** scrolls through recorded history.
+
+## Technical reference
+
+<details>
+<summary><strong>Runtime and telemetry</strong></summary>
+
+Penguin runs approximately every 200 ms while recording. The flash-record interval is independent; a five-second interval still allows about 25 inference samples between records.
+
+The firmware emits newline-delimited JSON at 115200 baud. Important AI fields are:
+
+- `ai_filter` — whether MCU-side filtering is enabled
+- `ai_state` — collecting, training, ready, watch, or anomaly
+- `ai_error` — autoencoder reconstruction error
+- `ai_prediction_error` — predictor absolute error
+- `ai_score` — combined score
+- `training_samples` — selected baseline length
+- `training_steps` — completed model updates
+
+</details>
+
+<details>
+<summary><strong>Training and persistence lifecycle</strong></summary>
+
+Model parameters live in RAM. Stopping and restarting recording without resetting the MCU retains the trained models. Resetting or power-cycling initializes deterministic weights and repeats baseline training.
+
+Serialization and checksum code exists, but production firmware does not currently save or restore trained parameters. The baseline-length setting is retained separately in the RTC domain. Complete power-loss persistence of this setting is not claimed.
+
+Flash-recorded temperature history is independent of model state.
+
+</details>
+
+<details>
+<summary><strong>Source code and tests</strong></summary>
 
 - [Model service and ensemble logic](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/ai/baby_temp_service.c)
-- [Autoencoder implementation](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/ai/baby_temp_ae.c)
-- [Linear predictor implementation](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/ai/baby_temp_predictor.c)
-- [MCXC162 firmware integration](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/firmware/main.c)
-- [Host-side model tests](https://github.com/telespial/EmbeddedX_V2_0/tree/main/projects/manufacturers/NXP/FRDM/MCXC162/ai)
+- [Autoencoder](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/ai/baby_temp_ae.c)
+- [Linear predictor](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/ai/baby_temp_predictor.c)
+- [Firmware integration](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/firmware/main.c)
+- [Host-side tests](https://github.com/telespial/EmbeddedX_V2_0/tree/main/projects/manufacturers/NXP/FRDM/MCXC162/ai)
+- [Complete operating guide](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/README.md)
 
-## Validation strategy
+Host tests cover forward propagation, component errors, service training, synthetic anomaly response, and model serialization checks. Hardware testing is still required for sensor timing, false-alert rate, response latency, LED timing, and complete power-loss behavior.
 
-The model package includes host-side tests for:
+</details>
 
-- Autoencoder forward propagation and reconstruction error.
-- Predictor output and absolute prediction error.
-- Service training and status reporting.
-- A large synthetic temperature excursion producing an anomaly.
-- Model serialization, restoration, and checksum rejection.
+## Troubleshooting
 
-Hardware validation should additionally measure real sensor cadence, baseline behavior, anomaly response latency, false-alert rate, and blue LED timing. Host tests do not replace validation on the target board.
+### The browser says Web Serial is unavailable
 
-## Known limitations
+Use current desktop Chrome or Edge and open <http://localhost:4173>. Do not open `index.html` directly.
 
-- Per-window normalization emphasizes pattern changes rather than absolute temperature limits.
-- The selected first 32–256 samples form the baseline; a disturbance during startup can influence learned behavior.
-- Training data comes from the current device and environment, not from a diverse population dataset.
-- The three-sample filter trades some response speed for noise reduction.
-- The current firmware does not persist trained parameters across reset or complete power loss.
+### The board does not appear
+
+Confirm that the cable carries data and is connected to the MCU-Link/debug connector. Close MCUXpresso serial terminals and other dashboard tabs. On Linux, verify serial-device group permissions.
+
+### The dashboard connects but the graph is empty
+
+Recording is stopped at boot. Press SW3 or select **Start recording**. The green LED should turn on.
+
+### Connection fails after selecting the board
+
+Another application probably owns the serial port. Only one browser tab or serial application can connect at a time.
+
+## Limitations
+
+- Penguin recognizes changes from learned behavior; it does not enforce absolute safe temperature limits.
+- A disturbance during baseline collection can influence what the models learn as normal.
+- Training uses the current device and environment, not a broad population dataset.
+- The AI filter can reduce sensor noise but may soften and delay a real abrupt change.
+- Trained model parameters do not survive reset or complete power loss.
+- Thresholds and learning rates still require characterization across boards and environments.
 - Detection quality has not been clinically validated.
-- Thresholds and learning rates require empirical characterization across sensors, boards, and environments.
 
-For safety-related use, pair Penguin with independent deterministic high/low limits, sensor fault detection, watchdog behavior, and a validated alert path.
+For safety-related use, add independent high/low limits, sensor-fault handling, watchdog behavior, and a validated alert path.
 
 ## License
 
-This project is released under the repository's [MIT License](../LICENSE).
+Released under the repository's [MIT License](../LICENSE).
 
 Copyright © 2026 Richard Haberkern.
