@@ -13,7 +13,9 @@ Penguin combines two small models:
 When their combined score crosses the learned anomaly threshold, the board flashes its blue LED and reports the anomaly to the browser dashboard.
 
 > [!CAUTION]
-> Penguin is an experimental environmental anomaly detector. It is not a medical device, a clinical infant monitor, or a replacement for an independently validated high/low temperature alarm.
+> Penguin is an experimental environmental anomaly detector. It is not a medical device, a clinical temperature monitor, or a replacement for an independently validated high/low temperature alarm.
+
+Concept and implementation of the EdgeAI models and code by: Richard Haberkern
 
 ## Contents
 
