@@ -1,6 +1,8 @@
 # Model: Penguin - Temperature Anomaly Detector Demo
 ## FRDM MCXC162 Development Board
 
+<img width="640" height="450" alt="IMG_2568" src="https://github.com/user-attachments/assets/1f4a1e59-f718-44e5-bc66-dbc48cc1902a" />
+
 **Penguin learns the normal temperature behavior around an FRDM-MCXC162 and alerts when that behavior changes.**
 
 It runs entirely on the microcontroller. No cloud connection is required for sampling, training, inference, scoring, or alerting.
