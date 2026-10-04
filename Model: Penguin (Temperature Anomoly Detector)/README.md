@@ -382,6 +382,10 @@ Controls how many samples are used to establish normal behavior. Changing it res
 - **Mouse wheel:** zooms the graph.
 - **Drag:** scrolls through recorded history.
 
+### How To Test Anomaly Detection
+- **Simply blow on the temperature sensor located near the USB connector on the FRDM MCXC162 board.
+- Temperature Anomaly Detected Banner will show on webpage and blue LED will illuminate for a few seconds.
+
 ## Technical reference
 
 <details>
