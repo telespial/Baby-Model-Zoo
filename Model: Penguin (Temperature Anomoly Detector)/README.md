@@ -293,11 +293,12 @@ mirrored from the tested EmbeddedX FRDM-MCXC162 project.
 
    ```sh
    git clone https://github.com/telespial/EmbeddedX_V2_0.git
-   cd EmbeddedX_V2_0
-   node --version
+   cd EmbeddedX_V2_0/projects/manufacturers/NXP/FRDM/MCXC162
+   npm install
    ```
 
-The version should begin with `v24`. macOS normally recognizes MCU-Link serial without another driver.
+The installer checks Node.js and all required Penguin files. macOS normally
+recognizes MCU-Link serial without another driver.
 
 </details>
 
@@ -310,11 +311,12 @@ The version should begin with `v24`. macOS normally recognizes MCU-Link serial w
 
    ```powershell
    git clone https://github.com/telespial/EmbeddedX_V2_0.git
-   Set-Location EmbeddedX_V2_0
-   node --version
+   Set-Location "EmbeddedX_V2_0\projects\manufacturers\NXP\FRDM\MCXC162"
+   npm install
    ```
 
-The version should begin with `v24`. Let Windows finish installing the USB serial device after first attaching the board.
+Let Windows finish installing the USB serial device after first attaching the
+board. The installer does not install drivers or flash firmware.
 
 </details>
 
@@ -326,8 +328,8 @@ The version should begin with `v24`. Let Windows finish installing the USB seria
 
    ```sh
    git clone https://github.com/telespial/EmbeddedX_V2_0.git
-   cd EmbeddedX_V2_0
-   node --version
+   cd EmbeddedX_V2_0/projects/manufacturers/NXP/FRDM/MCXC162
+   npm install
    ```
 
 3. If your distribution assigns serial devices to `dialout`, grant your user access:
@@ -340,12 +342,28 @@ Log out completely and sign in again. Some distributions use another group; chec
 
 </details>
 
+### What the automatic installer does
+
+`npm install` automatically runs Penguin's zero-dependency setup check. It:
+
+- requires Node.js 24 or newer;
+- confirms the dashboard, firmware, production AI, and model-example files are
+  present;
+- validates the dashboard JavaScript syntax;
+- reports the operating system, CPU architecture, Node version, and project
+  location; and
+- prints the next commands.
+
+It does **not** install system-wide packages or USB drivers, download an MCU
+SDK, change serial permissions, build firmware, or flash the board. Re-run the
+setup with `npm run setup`, or run the same checks with `npm run verify`.
+
 ### 2. Start the dashboard
 
-From the EmbeddedX repository root on macOS, Windows, or Linux:
+From the MCXC162 project folder on macOS, Windows, or Linux:
 
 ```sh
-node scripts/serve-dashboard.mjs
+npm start
 ```
 
 The server opens the default browser at <http://localhost:4173>. If it does not open automatically, enter that address manually in Chrome or Edge.
