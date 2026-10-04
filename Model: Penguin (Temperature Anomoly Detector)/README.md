@@ -1,6 +1,6 @@
 # Model: Penguin - EdgeAI Temperature Anomaly Detector
 
-<img width="640" height="450" alt="IMG_2568" src="https://github.com/user-attachments/assets/1f4a1e59-f718-44e5-bc66-dbc48cc1902a" />
+<img width="640" height="480" alt="IMG_2574" src="https://github.com/user-attachments/assets/0c723cad-04ca-4aad-9373-f8a9ed7198ee" />
 
 ## FRDM MCXC162 Development Board
 **Penguin learns the normal temperature behavior around an NXP FRDM-MCXC162 and alerts when that behavior changes.**
