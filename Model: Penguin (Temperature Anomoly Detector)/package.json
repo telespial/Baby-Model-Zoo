@@ -1,0 +1,16 @@
+{
+  "name": "penguin-temperature-anomaly-detector",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local installer and dashboard launcher for the Penguin MCXC162 temperature anomaly detector",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "postinstall": "node tools/install.mjs",
+    "setup": "node tools/install.mjs",
+    "start": "node tools/serve-dashboard.mjs",
+    "verify": "node tools/install.mjs --verify"
+  }
+}

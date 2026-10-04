@@ -27,16 +27,13 @@ Only the local dashboard server requires Node.js. The dashboard itself has no ad
 
    ```sh
    git clone https://github.com/telespial/EmbeddedX_V2_0.git
-   cd EmbeddedX_V2_0
+   cd EmbeddedX_V2_0/projects/manufacturers/NXP/FRDM/MCXC162
+   npm install
    ```
 
-4. Confirm Node is available:
-
-   ```sh
-   node --version
-   ```
-
-   The version should begin with `v24`.
+The installer verifies Node.js, the dashboard, firmware sources, production AI
+sources, and educational examples. It does not flash the board or install
+system-wide software.
 
 No serial driver is normally required for the MCU-Link USB serial interface on a current macOS installation.
 
@@ -49,16 +46,12 @@ No serial driver is normally required for the MCU-Link USB serial interface on a
 
    ```powershell
    git clone https://github.com/telespial/EmbeddedX_V2_0.git
-   Set-Location EmbeddedX_V2_0
+   Set-Location "EmbeddedX_V2_0\projects\manufacturers\NXP\FRDM\MCXC162"
+   npm install
    ```
 
-5. Confirm Node is available:
-
-   ```powershell
-   node --version
-   ```
-
-   The version should begin with `v24`.
+The installer performs the same local validation on Windows and never programs
+the attached board automatically.
 
 Windows should install the standard USB serial device automatically when the board is attached. Let device installation finish before opening the dashboard.
 
@@ -70,8 +63,8 @@ Windows should install the standard USB serial device automatically when the boa
 
    ```sh
    git clone https://github.com/telespial/EmbeddedX_V2_0.git
-   cd EmbeddedX_V2_0
-   node --version
+   cd EmbeddedX_V2_0/projects/manufacturers/NXP/FRDM/MCXC162
+   npm install
    ```
 
 4. Ensure your user can access USB serial devices. On distributions that assign serial ports to the `dialout` group, run:
@@ -84,18 +77,29 @@ Windows should install the standard USB serial device automatically when the boa
 
 Do not run Chrome, Edge, or the dashboard server as root.
 
+## What the installer does
+
+Running `npm install` invokes Penguin's zero-dependency installer. It:
+
+- requires Node.js 24 or newer;
+- confirms the dashboard, firmware, AI, and example files are present;
+- checks the dashboard JavaScript syntax;
+- reports the detected operating system, architecture, Node version, and
+  project path; and
+- prints the next commands.
+
+It does **not** install USB drivers, download an MCU SDK, build or flash
+firmware, change serial permissions, or modify global system settings. Run the
+installer again at any time with `npm run setup`, or run validation explicitly
+with `npm run verify`.
+
 ## Start the dashboard
 
-The same command works from the repository root on all three operating systems:
+From the MCXC162 project folder, the same command works on macOS, Windows, and
+Linux:
 
 ```sh
-node scripts/serve-dashboard.mjs
-```
-
-You may also use:
-
-```sh
-npm run dashboard
+npm start
 ```
 
 The server binds only to `127.0.0.1`, prints the dashboard address, and opens the default browser at:
@@ -104,7 +108,9 @@ The server binds only to `127.0.0.1`, prints the dashboard address, and opens th
 
 If the browser does not open automatically, copy that address into Chrome or Edge. Keep the terminal window open while using the dashboard. Press `Ctrl+C` in the terminal to stop the server.
 
-To prevent automatic browser opening, set `EMBEDDEDX_DASHBOARD_OPEN=0` before starting the server. To use another port, set `EMBEDDEDX_DASHBOARD_PORT` to the desired port number.
+To prevent automatic browser opening, set `PENGUIN_DASHBOARD_OPEN=0` before
+starting the server. To use another port, set `PENGUIN_DASHBOARD_PORT` to the
+desired port number.
 
 ## Connect the board
 
@@ -252,14 +258,14 @@ Disconnect in the dashboard, reconnect, and allow the page to send the current c
 Stop the other dashboard process or choose another port. For example:
 
 ```sh
-EMBEDDEDX_DASHBOARD_PORT=4174 node scripts/serve-dashboard.mjs
+PENGUIN_DASHBOARD_PORT=4174 npm start
 ```
 
 In Windows PowerShell:
 
 ```powershell
-$env:EMBEDDEDX_DASHBOARD_PORT = "4174"
-node scripts/serve-dashboard.mjs
+$env:PENGUIN_DASHBOARD_PORT = "4174"
+npm start
 ```
 
 ## Building and flashing firmware
