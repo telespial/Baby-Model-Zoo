@@ -1,6 +1,7 @@
 # Model: Penguin
 
-## Temperature Anomaly Detector
+## Temperature Anomaly Detector Demo
+#FRDM MCXC162 Development Board
 
 **Penguin learns the normal temperature behavior around an FRDM-MCXC162 and alerts when that behavior changes.**
 
