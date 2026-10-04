@@ -28,12 +28,121 @@ Their errors are combined into a single anomaly score. A detected anomaly is rep
 | Temperature sensor | Onboard P3T1755 |
 | Temperature sampling | Nominally every 200 ms while recording |
 | Analysis window | 16 samples, approximately 3.2 seconds |
-| Baseline period | First 128 samples after initialization |
+| Baseline period | Adjustable from 32 to 256 samples; default 128 |
 | Model 1 | 16–8–4–8–16 autoencoder |
 | Model 2 | Eight-input linear predictor |
 | Combined score | Mean of reconstruction and prediction errors |
 | Alert output | USB telemetry plus a 500 ms blue LED indication |
 | Memory policy | Fixed-size static buffers; no model heap allocation |
+
+## Install and run the reference application
+
+The runnable firmware and browser dashboard are maintained in the [EmbeddedX repository](https://github.com/telespial/EmbeddedX_V2_0/tree/main/projects/manufacturers/NXP/FRDM/MCXC162). The dashboard runs locally on macOS, Windows, and Linux and sends no temperature data to a cloud service.
+
+### Requirements
+
+- An FRDM-MCXC162 programmed with the reference firmware.
+- A data-capable USB cable attached to the MCU-Link/debug USB connector.
+- Node.js 24.
+- A current desktop Google Chrome or Microsoft Edge browser. Firefox and Safari do not currently expose the Web Serial API required by the dashboard.
+- Git, unless the repository is downloaded as a ZIP file.
+
+### macOS installation
+
+1. Install Node.js 24 from [nodejs.org](https://nodejs.org/en/download).
+2. Install Chrome or Edge.
+3. Open Terminal and run:
+
+   ```sh
+   git clone https://github.com/telespial/EmbeddedX_V2_0.git
+   cd EmbeddedX_V2_0
+   node --version
+   ```
+
+The Node version should begin with `v24`. A current macOS installation normally recognizes the MCU-Link serial interface without an additional driver.
+
+### Windows installation
+
+1. Install Node.js 24 from [nodejs.org](https://nodejs.org/en/download) and allow the installer to add Node to `PATH`.
+2. Install Chrome or Edge and, if needed, [Git for Windows](https://git-scm.com/download/win).
+3. Open PowerShell and run:
+
+   ```powershell
+   git clone https://github.com/telespial/EmbeddedX_V2_0.git
+   Set-Location EmbeddedX_V2_0
+   node --version
+   ```
+
+The Node version should begin with `v24`. Allow Windows to finish installing the board's USB serial device after first attachment.
+
+### Linux installation
+
+1. Install Node.js 24 and a current Chrome or Edge build.
+2. Clone the repository:
+
+   ```sh
+   git clone https://github.com/telespial/EmbeddedX_V2_0.git
+   cd EmbeddedX_V2_0
+   node --version
+   ```
+
+3. Ensure that your account can access USB serial devices. On distributions using the `dialout` group:
+
+   ```sh
+   sudo usermod -aG dialout "$USER"
+   ```
+
+   Log out completely and sign in again. If the board's `/dev/ttyACM*` device belongs to another group, use the group configured by that distribution. Do not run the browser or dashboard as root.
+
+### Start the dashboard
+
+From the EmbeddedX repository root on any supported operating system, run:
+
+```sh
+node scripts/serve-dashboard.mjs
+```
+
+The equivalent npm command is:
+
+```sh
+npm run dashboard
+```
+
+The local server binds to `127.0.0.1` and opens <http://localhost:4173>. If the browser does not open automatically, enter that address manually in Chrome or Edge. Keep the terminal open while using the application; press `Ctrl+C` to stop it.
+
+### Connect the device
+
+1. Attach the board through its MCU-Link/debug USB connector.
+2. Close IDE serial terminals, other dashboard tabs, and any program using the board's serial port.
+3. Select **Connect board** in the dashboard.
+4. Choose the MCU-Link serial port in the browser's device chooser.
+5. Confirm that the upper-right status changes to **Board connected · RTC synced**.
+
+The dashboard synchronizes the RTC from the computer after every successful connection. Browser security requires a user click before a serial-device chooser can open.
+
+### SW2, SW3, and LEDs
+
+The firmware boots stopped:
+
+- **SW3** starts recording, live graph telemetry, and Penguin inference.
+- **SW2** stops recording and live sampling without erasing history.
+- **Red steady** means recording is stopped.
+- **Green steady** means recording is active.
+- **Green off for 25 ms** marks a successful flash record. This blink follows the selected record interval.
+- **Blue for 500 ms** indicates a Penguin anomaly. Continued anomalies restart the timer.
+
+The dashboard's start/pause button mirrors SW3 and SW2.
+
+### Configure and use the application
+
+- Unlock the record-interval slider with **Lock: Off**, choose a value from one second to one hour, and optionally relock it. The MCU retains the setting and supplies it to the dashboard at connection time.
+- Choose a **Baseline training** length from 32 to 256 samples. At the 200 ms inference cadence, this is approximately 6.4 to 51.2 seconds. Changing it resets both in-RAM models and begins a new baseline. The choice is retained on the device across reset while the RTC power domain remains available.
+- Keep the sensor in representative normal conditions while the baseline is collected.
+- Enable **AI Filter** to apply a three-sample moving average to model input. Displayed and logged measurements remain raw.
+- Use **Playback** to load flash history, the mouse wheel to zoom, dragging to scroll, **Show all** to reset the view, and **Export CSV** to download the displayed data.
+- **Reset logger** permanently erases temperature history after confirmation; it does not clear the retained interval or training selection.
+
+The full operational and troubleshooting guide is also available in the [FRDM-MCXC162 project README](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/README.md).
 
 ## Signal and inference pipeline
 
@@ -178,7 +287,7 @@ Neither component alone determines the state. Classification is based on the com
 
 ### Adaptive thresholds
 
-During baseline training, Penguin maintains the running mean and sample variance of the combined error. It then calculates:
+During the selected baseline-training period, Penguin maintains the running mean and sample variance of the combined error. It then calculates:
 
 ```text
 watch_threshold   = max(0.08, mean_error + 2 × standard_deviation)
@@ -191,7 +300,7 @@ The fixed minimums prevent an extremely quiet baseline from producing thresholds
 |---|---|
 | `untrained` | Models have been initialized but have not received data. |
 | `collecting` | Fewer than 16 samples are available, so no complete window exists. |
-| `training` | The baseline is being learned during the first 128 samples. |
+| `training` | The baseline is being learned for the selected 32–256 sample period. |
 | `ready` | The score is below the watch threshold. |
 | `watch` | The score is at or above the watch threshold but below the anomaly threshold. |
 | `anomaly` | The score is at or above the anomaly threshold. |
@@ -222,7 +331,7 @@ At a nominal 200 ms sample cadence, it smooths roughly the latest 600 ms of meas
 
 ## Training and persistence lifecycle
 
-The model parameters live in MCU RAM. Serialization and checksum routines exist for packaging the autoencoder, predictor, and training-step count, but the current production firmware does not call them to save or restore a trained model.
+The model parameters live in MCU RAM. Serialization and checksum routines exist for packaging the autoencoder, predictor, and training-step count, but the current production firmware does not call them to save or restore a trained model. The selected baseline length is retained separately as a device setting.
 
 Consequences:
 
@@ -269,7 +378,7 @@ Hardware validation should additionally measure real sensor cadence, baseline be
 ## Known limitations
 
 - Per-window normalization emphasizes pattern changes rather than absolute temperature limits.
-- The first 128 samples form the baseline; a disturbance during startup can influence learned behavior.
+- The selected first 32–256 samples form the baseline; a disturbance during startup can influence learned behavior.
 - Training data comes from the current device and environment, not from a diverse population dataset.
 - The three-sample filter trades some response speed for noise reduction.
 - The current firmware does not persist trained parameters across reset or complete power loss.
