@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#07131f" />
+    <title>FRDM MCXC162 · Temperature Monitor</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <div class="datetime" id="clock" aria-live="off">—</div>
+        <div class="identity">
+          <span class="eyebrow">EmbeddedX live telemetry</span>
+          <h1>FRDM MCXC162</h1>
+          <p>Onboard P3T1755 temperature sensor</p>
+        </div>
+        <div class="connection">
+          <span class="status" id="status" data-state="offline">
+            <span class="status-dot"></span><span id="statusText">Not connected</span>
+          </span>
+          <button class="primary" id="connectButton" type="button">Connect board</button>
+        </div>
+      </header>
+
+      <section class="readings" aria-label="Current temperature">
+        <article class="reading reading-celsius">
+          <span class="reading-label">Celsius</span>
+          <div><strong id="celsius">--.--</strong><span>°C</span></div>
+        </article>
+        <article class="reading reading-fahrenheit">
+          <span class="reading-label">Fahrenheit</span>
+          <div><strong id="fahrenheit">--.--</strong><span>°F</span></div>
+        </article>
+        <article class="control-card interval-control">
+          <div class="control-heading setting-heading">
+            <span class="reading-label">Record interval</span>
+            <button class="pill" id="intervalLock" type="button" aria-pressed="true">Lock: <span>On</span></button>
+          </div>
+          <div class="setting-value-row">
+            <strong id="rateLabel">1.00 s</strong>
+            <span class="range-hint">Fast&nbsp;&nbsp;↔&nbsp;&nbsp;Slow</span>
+          </div>
+          <input id="rate" type="range" min="0" max="9" step="1" value="2" aria-label="Board logging interval" />
+          <div class="range-values"><span>1 s</span><span>1 hour</span></div>
+        </article>
+        <article class="control-card training-control">
+          <div class="control-heading setting-heading">
+            <span class="reading-label">Baseline training</span>
+            <button class="pill" id="trainingLock" type="button" aria-pressed="true">Lock: <span>On</span></button>
+          </div>
+          <div class="setting-value-row">
+            <strong id="trainingLabel">128 samples · ~25.6 s</strong>
+          </div>
+          <input id="trainingWindow" type="range" min="0" max="7" step="1" value="3" aria-label="AI baseline training samples" disabled />
+          <div class="range-values"><span>32 samples</span><span>256 samples</span></div>
+        </article>
+        <aside class="control-card ai-controls" aria-label="AI display controls">
+          <span class="reading-label">AI controls</span>
+          <div class="pill-column">
+            <button class="pill" id="aiFilter" type="button" aria-pressed="false">AI Filter <span>Off</span></button>
+            <button class="pill" id="aiAnomaly" type="button" aria-pressed="true">AI Anomaly <span>On</span></button>
+            <button class="pill" id="anomalyAlert" type="button" aria-pressed="true">Anomaly Alert <span>On</span></button>
+            <button class="pill" id="anomalyAlarm" type="button" aria-pressed="false">Anomaly Alarm <span>Off</span></button>
+          </div>
+        </aside>
+      </section>
+
+      <section class="recorder-bar" aria-label="Recorder controls">
+        <div class="recorder-state">
+          <span class="record-dot" id="recordDot"></span>
+          <div><strong id="recordState">Ready to record</strong><span id="memoryState">RTC waiting for connection · 0 / 1024 records</span></div>
+        </div>
+        <div class="recorder-actions">
+          <button class="record-button" id="recordButton" type="button" disabled>Pause recording</button>
+          <button class="secondary" id="playbackButton" type="button" disabled>Playback</button>
+          <button class="secondary" id="showAllButton" type="button" disabled>Show all</button>
+          <button class="secondary" id="exportButton" type="button" disabled>Export CSV</button>
+          <button class="danger-button" id="clearButton" type="button" disabled>Reset logger</button>
+        </div>
+      </section>
+
+      <section class="chart-card" aria-labelledby="chartTitle">
+        <div class="chart-heading">
+          <div>
+            <span class="eyebrow" id="chartMode">Live history</span>
+            <h2 id="chartTitle">Temperature over time</h2>
+          </div>
+          <div class="legend" aria-hidden="true"><span></span>Temperature</div>
+        </div>
+        <div class="chart-wrap">
+          <canvas id="chart" role="img" aria-label="Temperature graph with date and time on the X axis and temperature on the Y axis. Use the mouse wheel to zoom and drag to scroll."></canvas>
+          <div class="empty-chart" id="emptyChart">Connect the board to begin streaming</div>
+          <div class="anomaly-notice" id="anomalyNotice" role="status" aria-live="assertive" hidden>Temperature Anomaly Detected</div>
+        </div>
+        <div class="axis-label axis-y">Temperature</div>
+        <div class="axis-label axis-x">Date &amp; time</div>
+      </section>
+
+      <footer>
+        <span>USB serial · 115200 baud · JSON lines</span>
+        <strong class="copyright">© Richard Haberkern</strong>
+        <span id="sampleCount">0 samples</span>
+      </footer>
+    </main>
+    <script src="app.js" defer></script>
+  </body>
+</html>

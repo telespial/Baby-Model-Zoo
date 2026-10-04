@@ -14,7 +14,9 @@ Penguin combines two small models:
 
 When their combined score crosses the learned anomaly threshold, the board flashes its blue LED and reports the anomaly to the browser dashboard.
 
-The runnable firmware and dashboard are maintained in the [EmbeddedX FRDM-MCXC162 project](https://github.com/telespial/EmbeddedX_V2_0/tree/main/projects/manufacturers/NXP/FRDM/MCXC162).
+Run the project from this folder using its own [`firmware`](firmware/),
+[`ai`](ai/), and [`dashboard`](dashboard/) directories. The tested source is
+automatically synchronized from EmbeddedX.
 
 > [!CAUTION]
 > Penguin is an experimental environmental anomaly detector. It is not a medical device, a clinical temperature monitor, or a replacement for an independently validated high/low temperature alarm.
@@ -26,6 +28,7 @@ The runnable firmware and dashboard are maintained in the [EmbeddedX FRDM-MCXC16
 - [How Penguin works](#how-penguin-works)
 - [Model 1: autoencoder](#model-1-autoencoder)
 - [Model 2: linear predictor](#model-2-linear-predictor)
+- [Educational model examples](#educational-model-examples)
 - [Training and anomaly decisions](#training-and-anomaly-decisions)
 - [Install and run](#install-and-run)
 - [Board controls and LEDs](#board-controls-and-leds)
@@ -196,6 +199,24 @@ weight[i] += learning_rate × error × input[i]
 
 Like the autoencoder, it trains during baseline collection and later adapts only when the combined score remains below the watch threshold.
 
+## Educational model examples
+
+The [`model_examples`](model_examples/) folder contains two dependency-free,
+heavily commented Python programs:
+
+- [`autoencoder_example.py`](model_examples/autoencoder_example.py) shows the
+  complete 16–8–4–8–16 forward pass, mean squared reconstruction error, and
+  backpropagation update.
+- [`predictor_example.py`](model_examples/predictor_example.py) shows the
+  eight-input linear prediction, absolute error, and online weight update.
+
+The accompanying [`model_examples/README.md`](model_examples/README.md)
+explains normalization, architecture, learning, ensemble scoring, threshold
+training, guarded adaptation, parameter sizes, and how the examples relate to
+the production C implementation. The examples require only Python and are
+intended for learning and experimentation; [`ai`](ai/) remains the production
+MCU model source.
+
 ## Training and anomaly decisions
 
 ### Adjustable baseline
@@ -245,11 +266,14 @@ The resulting states are:
 
 ## Install and run
 
-The runnable firmware and dashboard are maintained in the [EmbeddedX FRDM-MCXC162 project](https://github.com/telespial/EmbeddedX_V2_0/tree/main/projects/manufacturers/NXP/FRDM/MCXC162).
+The runnable board code is in this model's own [`firmware`](firmware/) folder.
+The production model implementation is in [`ai`](ai/), and the browser
+application is in [`dashboard`](dashboard/). These folders are automatically
+mirrored from the tested EmbeddedX FRDM-MCXC162 project.
 
 ### Requirements
 
-- FRDM-MCXC162 programmed with the reference firmware
+- FRDM-MCXC162 programmed with the [reference firmware](firmware/)
 - Data-capable USB cable connected to the MCU-Link/debug USB connector
 - Node.js 24
 - Current desktop Google Chrome or Microsoft Edge
@@ -370,10 +394,12 @@ Controls how many samples are used to establish normal behavior. Changing it res
 
 ### AI controls
 
-- **AI Filter:** applies a three-sample moving average before model inference.
-- **AI Anomaly:** enables or disables browser handling of MCU anomaly states.
-- **Anomaly Alert:** controls the large red graph alert.
-- **Anomaly Alarm:** controls browser vibration where supported.
+- **AI Filter:** applies a three-sample moving average before model inference. This is retained on the board; changing it starts a fresh baseline.
+- **AI Anomaly:** enables or disables MCU inference and its blue LED. This is retained on the board; re-enabling it starts a fresh baseline.
+- **Anomaly Alert:** controls the large red graph alert and is retained by the browser.
+- **Anomaly Alarm:** controls browser vibration where supported and is retained by the browser.
+
+The record interval and baseline length are also retained by the board. The interval Lock is a browser preference. Recording itself intentionally starts stopped after every board boot.
 
 ### Recorded data
 
@@ -421,12 +447,13 @@ Flash-recorded temperature history is independent of model state.
 <details>
 <summary><strong>Source code and tests</strong></summary>
 
-- [Model service and ensemble logic](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/ai/baby_temp_service.c)
-- [Autoencoder](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/ai/baby_temp_ae.c)
-- [Linear predictor](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/ai/baby_temp_predictor.c)
-- [Firmware integration](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/firmware/main.c)
-- [Host-side tests](https://github.com/telespial/EmbeddedX_V2_0/tree/main/projects/manufacturers/NXP/FRDM/MCXC162/ai)
-- [Complete operating guide](https://github.com/telespial/EmbeddedX_V2_0/blob/main/projects/manufacturers/NXP/FRDM/MCXC162/README.md)
+- [Model service and ensemble logic](ai/baby_temp_service.c)
+- [Autoencoder](ai/baby_temp_ae.c)
+- [Linear predictor](ai/baby_temp_predictor.c)
+- [Firmware integration](firmware/main.c)
+- [Host-side tests](ai/)
+- [Commented educational examples](model_examples/)
+- [Complete operating guide](EMBEDDEDX_PROJECT_README.md)
 
 Host tests cover forward propagation, component errors, service training, synthetic anomaly response, and model serialization checks. Hardware testing is still required for sensor timing, false-alert rate, response latency, LED timing, and complete power-loss behavior.
 
