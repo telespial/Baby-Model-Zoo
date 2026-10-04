@@ -14,6 +14,8 @@ Penguin combines two small models:
 
 When their combined score crosses the learned anomaly threshold, the board flashes its blue LED and reports the anomaly to the browser dashboard.
 
+The runnable firmware and dashboard are maintained in the [EmbeddedX FRDM-MCXC162 project](https://github.com/telespial/EmbeddedX_V2_0/tree/main/projects/manufacturers/NXP/FRDM/MCXC162).
+
 > [!CAUTION]
 > Penguin is an experimental environmental anomaly detector. It is not a medical device, a clinical temperature monitor, or a replacement for an independently validated high/low temperature alarm.
 
