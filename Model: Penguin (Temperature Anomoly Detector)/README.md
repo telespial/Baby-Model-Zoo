@@ -88,6 +88,8 @@ The minimum scale is `0.05`, which prevents division by a very small value when 
 
 Normalization makes Penguin sensitive to the *shape* of a change—such as a jump, slope, or oscillation—rather than simply reacting to the absolute room temperature.
 
+The P3T1755 reports temperature in `0.0625 °C` increments. A complete window spanning no more than one of those increments is treated as sensor quantization and cannot raise an anomaly. Larger excursions continue through both models normally. This prevents a flat training baseline followed by a single normal conversion-count change from becoming a false alert.
+
 ## Model 1: autoencoder
 
 ### What it asks
