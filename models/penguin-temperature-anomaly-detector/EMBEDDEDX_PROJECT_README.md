@@ -3,7 +3,7 @@
 This project turns an NXP FRDM-MCXC162 board into a USB-connected temperature recorder with an RTC, circular flash history, browser dashboard, and the on-device Penguin anomaly detector. Temperature is measured by the board's P3T1755 sensor and shown in Celsius and Fahrenheit.
 
 > **Public mirror:** Commits to this project on EmbeddedX `main` are mirrored to
-> `Model: Penguin (Temperature Anomoly Detector)` in the Baby Model Zoo by
+> `models/penguin-temperature-anomaly-detector` in the Baby Model Zoo by
 > `.github/workflows/sync-penguin-model.yml`. The model-zoo landing `README.md`
 > is preserved; this document is published there as `EMBEDDEDX_PROJECT_README.md`.
 
