@@ -1,0 +1,7 @@
+cff-version: 1.2.0
+message: "If you use or reference this project, please cite it."
+title: "Baby Model Zoo"
+authors:
+  - family-names: Haberkern
+    given-names: Richard
+repository-code: "https://github.com/telespial/Baby-Model-Zoo"
